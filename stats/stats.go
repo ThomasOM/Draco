@@ -19,6 +19,17 @@ func CreateStats() *Stats {
 	return &Stats{}
 }
 
+func (stats *Stats) Reset() {
+	stats.TimeStarted = time.Time{}
+	stats.TimeFinished = time.Time{}
+	stats.CorrectCharactersTyped = 0
+	stats.TotalCharactersTyped = 0
+	stats.TotalSpacesTyped = 0
+	stats.CorrectSpacesTyped = 0
+	stats.TotalInputsTyped = 0
+	stats.WordsTyped = 0
+}
+
 func (stats *Stats) SecondsPassed() float64 {
 	toTime := time.Now()
 	if !stats.TimeFinished.IsZero() {

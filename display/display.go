@@ -25,7 +25,8 @@ type Display struct {
 	app      *tview.Application
 	root     *tview.Flex
 	textView *tview.TextView
-	footer   *tview.TextView
+	statsView   *tview.TextView
+	buttonView   *tview.TextView
 
 	finished bool
 	closed   bool
@@ -39,8 +40,6 @@ func CreateDisplay(content *content.Content, stats *stats.Stats) *Display {
 }
 
 func (display *Display) Start() {
-	display.app = tview.NewApplication()
-
 	// Set up main text view
 	display.textView = tview.NewTextView().
 		SetDynamicColors(true).
@@ -50,23 +49,44 @@ func (display *Display) Start() {
 		SetTitle(" Draco ").
 		SetTitleColor(titleColor).
 		SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-			display.input(event)
+			display.processInput(event)
 			display.textView.SetText(display.renderText())
 			return event
 		})
 
-	// Footer to display stats
-	display.footer = tview.NewTextView().
+	display.textView.SetText(display.renderText())
+
+	// Stats view
+	display.statsView = tview.NewTextView().
 		SetDynamicColors(true).
 		SetTextColor(noColor)
 
+	// Button view
+	display.buttonView = tview.NewTextView().
+		SetDynamicColors(true).
+		SetTextColor(noColor).
+		SetText(
+			"ESC - Close app\n" +
+			"F1 - Restart",
+		)
+
+	display.statsView.SetBorder(true).SetTitle(" Stats ")
+	display.buttonView.SetBorder(true).SetTitle(" Actions ")
+
+	// Footer to display stats
+	footer := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(display.statsView, 0, 1, false).
+		AddItem(display.buttonView, 0, 1, false)
+		
 	// Root flex element
 	display.root = tview.NewFlex().
-		SetDirection(tview.FlexRow).
+		SetDirection(tview.FlexColumn).
 		AddItem(display.textView, 0, 1, false).
-		AddItem(display.footer, 5, 0, false)
+		AddItem(footer, 25, 0, false)
 
-	display.textView.SetText(display.renderText())
+	// Set up app
+	display.app = tview.NewApplication()
 	display.app.SetRoot(display.root, true).SetFocus(display.textView)
 
 	// Start update loop
@@ -87,10 +107,9 @@ func (display *Display) finish() {
 	display.stats.TimeFinished = time.Now()
 }
 
-func (display *Display) input(event *tcell.EventKey) {
-	// Close the app when pressing escape
-	if event.Key() == tcell.KeyEscape {
-		display.app.Stop()
+func (display *Display) processInput(event *tcell.EventKey) {
+	// First process action keys
+	if display.processActions(event) {
 		return
 	}
 
@@ -157,11 +176,29 @@ func (display *Display) input(event *tcell.EventKey) {
 	}
 }
 
+func (display *Display) processActions(event *tcell.EventKey) bool {
+	switch event.Key() {
+	case tcell.KeyEscape: // Close the app when pressing escape
+		display.app.Stop()
+		return true
+	case tcell.KeyF1: // Reset app on F1
+		display.finished = false
+		display.content.Reset()
+		display.stats.Reset()
+		return true
+	}
+
+	return false
+}
+
 func (display *Display) update() {
 	for !display.closed {
 		var builder strings.Builder
 
 		// Dump all stats into string builder
+		builder.WriteString("Mode: ")
+		builder.WriteString(display.content.Description)
+		builder.WriteString("\n")
 		builder.WriteString("Total inputs: ")
 		builder.WriteString(strconv.Itoa(display.stats.TotalInputsTyped))
 		builder.WriteString("\n")
@@ -177,7 +214,7 @@ func (display *Display) update() {
 		builder.WriteString("WPM: ")
 		builder.WriteString(fmt.Sprintf("%.1f", display.stats.WordsPerMinute()))
 
-		display.footer.SetText(builder.String())
+		display.statsView.SetText(builder.String())
 		display.app.Draw()
 
 		time.Sleep(100) // 10 updates per second
